@@ -1,0 +1,24 @@
+version: '3.9'
+services:
+  mongo:
+    image: mongo:latest
+    container_name: mongo_container
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+  
+  data_generator:
+    build: ./data_generation
+    container_name: data_generator
+    depends_on:
+      - mongo
+    environment:
+      - MONGO_URL=mongodb://mongo:27017/
+      - DB_NAME=heart_diseases
+      - MODEL_PATH=/app/random_forest_model.pkl
+      - DATASET_PATH=/app/data/heart_dataset.csv
+      - COOLDOWN=5
+
+volumes:
+  mongo_data:
