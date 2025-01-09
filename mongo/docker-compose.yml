@@ -1,35 +1,12 @@
 version: '3.9'
 services:
-  mongo1:
+  mongo:
     image: mongo:latest
-    container_name: mongo1
-    restart: always
+    container_name: mongo_container
     ports:
-      - 27017:27017
-    command: >
-      mongod --replSet rs0 --bind_ip_all
+      - "27017:27017"
     volumes:
-      - mongo1_data:/data/db
-
-  mongo2:
-    image: mongo:latest
-    container_name: mongo2
-    restart: always
-    command: >
-      mongod --replSet rs0 --bind_ip_all
-    volumes:
-      - mongo2_data:/data/db
-
-  mongo3:
-    image: mongo:latest
-    container_name: mongo3
-    restart: always
-    command: >
-      mongod --replSet rs0 --bind_ip_all
-    volumes:
-      - mongo3_data:/data/db
+      - mongo_data:/data/db
 
 volumes:
-  mongo1_data:
-  mongo2_data:
-  mongo3_data:
+  mongo_data:
