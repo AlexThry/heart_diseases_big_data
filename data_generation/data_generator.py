@@ -125,5 +125,5 @@ if __name__ == "__main__":
         patient_col.insert_many(rows_as_dicts)
 
 
-        time.sleep(config.COOLDOWN / 1000)
+        time.sleep(config.COOLDOWN)
 
