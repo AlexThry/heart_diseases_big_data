@@ -1,6 +1,14 @@
 version: "3"
 
 services:
+  datafetcher:
+    build: ./fetcher
+    container_name: fetcher
+    restart: always
+    environment:
+      - MONGO_URL=mongodb://mongo:27017/
+
+
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
     container_name: namenode
