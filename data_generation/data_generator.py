@@ -122,8 +122,13 @@ if __name__ == "__main__":
         generated_data = generate_data(config.DATASET_PATH, model, nb_data=nb_data, with_results=with_results)
         rows_as_dicts = generated_data.to_dict(orient='records')
 
+        # Add timestamp to each record
+        timestamp = int(time.time())  # Convertir en entier
+        for record in rows_as_dicts:
+            record['time'] = timestamp
+            print(record)
+        print(rows_as_dicts)
         patient_col.insert_many(rows_as_dicts)
-
 
         time.sleep(config.COOLDOWN)
 

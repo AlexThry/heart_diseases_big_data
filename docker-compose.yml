@@ -18,7 +18,7 @@ services:
       - DB_NAME=heart_diseases
       - MODEL_PATH=/app/random_forest_model.pkl
       - DATASET_PATH=/app/data/heart_dataset.csv
-      - COOLDOWN=5
+      - COOLDOWN=60
 
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
@@ -73,13 +73,6 @@ services:
       - hadoop_historyserver:/hadoop/yarn/timeline
     env_file:
       - ./hadoop/hadoop.env
-
-  datafetcher:
-    build: ./hadoop/fetcher
-    container_name: fetcher
-    restart: always
-    environment:
-      - MONGO_URL=mongodb://mongo:27017/
 
 volumes:
   mongo_data:
