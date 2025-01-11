@@ -125,7 +125,7 @@ if __name__ == "__main__":
         # Add timestamp to each record
         timestamp = int(time.time())  # Convertir en entier
         for record in rows_as_dicts:
-            record['time'] = timestamp
+            record['timestamp'] = timestamp
             print(record)
         print(rows_as_dicts)
         patient_col.insert_many(rows_as_dicts)

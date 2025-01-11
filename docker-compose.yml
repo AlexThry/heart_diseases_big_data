@@ -31,6 +31,7 @@ services:
       - hadoop_namenode:/hadoop/dfs/name
     environment:
       - CLUSTER_NAME=test
+      - HDFS_NAMENODE_SAFEMODE_THRESHOLD_PCT=0
     env_file:
       - ./hadoop/hadoop.env
 
