@@ -68,3 +68,34 @@ It will return you an int
 - 1 : Heart disease
 
 If you have any question contact me.
+
+### How to use the model 
+the file .py name "model.py" is saved in machine_learning folder.
+
+You can, use directly this script and the two functions
+
+```python
+model(iterations)
+```
+To trained and create the model.
+If we want to use the improvement function same 
+```python
+improve_model(model,new_batch)
+```
+To predicted a record
+```python
+predicted_record(record,model)
+```
+
+Or you can use the file "trained_model.pkl"
+Then you can load the model directly using the pickle library
+
+```python
+import pickle
+with open('trained_model.pkl', 'rb') as file:
+    loaded_model = pickle.load(file)
+record = (a set of values)
+prediction = loaded_model.predict(record)
+```
+
+And that's it.
