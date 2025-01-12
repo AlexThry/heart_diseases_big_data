@@ -2,25 +2,26 @@ import config
 import pymongo
 import time
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
-
-
-
+import docker
+import io
+import tarfile
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    client = docker.from_env()
+
     while True:
-        logging.basicConfig(level=logging.INFO)
-        logger = logging.getLogger(__name__)
-        
         myclient = pymongo.MongoClient(config.MONGO_URL)
         mydb = myclient[config.DB_NAME]
 
         patient_col = mydb["patients"]
-        
         one_hour_ago = int(time.time()) - 3600
-        recent_patients = patient_col.find({"timestamp": {"$gte": one_hour_ago}})
-        recent_patients_list = list(recent_patients)        
+        recent_patients = patient_col.find({"timestamp": {"$gte": one_hour_ago}, "output": {"$exists": True}})
+        recent_patients_list = list(recent_patients)
 
         logger.info(f"Fetched {len(recent_patients_list)} patients from the database.")
                 
@@ -30,17 +31,31 @@ if __name__ == "__main__":
 
         with open(output_file, "w") as f:
             for patient in recent_patients_list:
-                f.write(str(patient) + "\n")
+                patient.pop("_id", None)
+                patient.pop("timestamp", None)
+                f.write(str(patient).replace("'", '"') + "\n")
                 
-        os.system(f"docker cp {output_file} namenode:/tmp")
+        container = client.containers.get("namenode")
+        with open(output_file, "rb") as f:
+            data = f.read()
         
-        os.system(f"docker exec namenode hdfs dfs -mkdir -p /user/root/input")
+        tar_stream = io.BytesIO()
+        with tarfile.open(fileobj=tar_stream, mode='w') as tar:
+            tarinfo = tarfile.TarInfo(name=os.path.basename(output_file))
+            tarinfo.size = len(data)
+            tar.addfile(tarinfo, io.BytesIO(data))
+        tar_stream.seek(0)
+        
+        container.put_archive("/tmp", tar_stream)
+
+        container.exec_run("hdfs dfs -mkdir -p /user/root/input")
         logger.info(f"Copied patients infos in namenode")
-        os.system(f"docker exec namenode hdfs dfs -test -d /user/root || docker exec namenode hdfs dfs -mkdir -p /user/root")
-        logger.info("/user/root/input folder exist")
-        os.system(f"docker exec namenode hdfs dfs -rm -f /user/root/input/{os.path.basename(output_file)}")
+
+        container.exec_run("hdfs dfs -rm -f /user/root/input/{}".format(os.path.basename(output_file)))
         logger.info("Removed old patients infos from hdfs system")
-        os.system(f"docker exec namenode hdfs dfs -put /tmp/{os.path.basename(output_file)} /user/root/input/")
-        logger.info("added new patients infos into hdfs system")
-        
+
+        container.exec_run("hdfs dfs -put /tmp/{} /user/root/input/".format(os.path.basename(output_file)))
+        logger.info("Added new patients infos into hdfs system")
+
+        logger.info("Waiting 1h. Modify this cooldown in config.py")
         time.sleep(config.COOLDOWN)
