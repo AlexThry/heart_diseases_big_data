@@ -17,14 +17,18 @@ if __name__ == "__main__":
     while True:
         myclient = pymongo.MongoClient(config.MONGO_URL)
         mydb = myclient[config.DB_NAME]
+        trees_col = mydb["trees"]  # Use the 'trees' collection for this task
 
+        # Step 1: Fetch patient data from MongoDB (if needed)
         patient_col = mydb["patients"]
         one_hour_ago = int(time.time()) - 3600
         recent_patients = patient_col.find({"timestamp": {"$gte": one_hour_ago}, "output": {"$exists": True}})
         recent_patients_list = list(recent_patients)
 
         logger.info(f"Fetched {len(recent_patients_list)} patients from the database.")
+        logger.info("sexe")
 
+        # Step 2: Save data to file for HDFS
         output_dir = datetime.now().strftime("./output/")
         os.makedirs(output_dir, exist_ok=True)
         output_file = os.path.join(output_dir, "patients.txt")
@@ -35,9 +39,9 @@ if __name__ == "__main__":
                 patient.pop("timestamp", None)
                 f.write(str(patient).replace("'", '"') + "\n")
 
+        # Step 3: Copy the file into the Docker container's HDFS system
         container = client.containers.get("namenode")
 
-        # Copy patients.txt into the container
         with open(output_file, "rb") as f:
             data = f.read()
 
@@ -50,8 +54,8 @@ if __name__ == "__main__":
 
         container.put_archive("/tmp", tar_stream)
 
-        # Copy map_reduce.jar into the container
-        jar_file = "./map_reduce.jar"  # Ensure this file exists in your script's directory
+        # Copy the map_reduce.jar file to the container
+        jar_file = "map_reduce.jar"  # Ensure this file exists in your script's directory
         with open(jar_file, "rb") as f:
             jar_data = f.read()
 
@@ -67,14 +71,89 @@ if __name__ == "__main__":
         container.exec_run("hdfs dfs -mkdir -p /user/root/input")
         logger.info(f"Copied patients info into namenode")
 
+        # Remove old data from HDFS
         container.exec_run("hdfs dfs -rm -f /user/root/input/{}".format(os.path.basename(output_file)))
         logger.info("Removed old patients info from HDFS system")
 
+        # Add the new data into HDFS
         container.exec_run("hdfs dfs -put /tmp/{} /user/root/input/".format(os.path.basename(output_file)))
         logger.info("Added new patients info into HDFS system")
 
-        logger.info("Uploaded map_reduce.jar into /tmp of the namenode")
-        container.exec_run("hadoop jar map_reduce.jar org.apache.hadoop.examples.DecisionTreeMapReduce input output")
+        # Verify if the file is actually in HDFS before running the MapReduce job
+        check_input_file = container.exec_run("hdfs dfs -ls /user/root/input/{}".format(os.path.basename(output_file)))
+        if check_input_file.exit_code != 0:
+            logger.error(f"Input file {os.path.basename(output_file)} not found in HDFS.")
+            continue
+        else:
+            logger.info(f"Input file {os.path.basename(output_file)} is present in HDFS.")
 
-        logger.info("Waiting 1h. Modify this cooldown in config.py")
+        # Step 4: Check if Hadoop is in safe mode and exit it if necessary
+        logger.info("Checking if Hadoop is in Safe Mode...")
+        
+        # Run the command to check if the NameNode is in safe mode
+        safemode_check = container.exec_run("hdfs dfsadmin -safemode get")
+        
+        if b"Safe mode is ON" in safemode_check.output:
+            logger.info("Hadoop is in Safe Mode. Attempting to force exit safe mode.")
+            container.exec_run("hdfs dfsadmin -safemode leave")
+            logger.info("Hadoop is no longer in Safe Mode.")
+        else:
+            logger.info("Hadoop is not in Safe Mode.")
+
+        # Step 5: Run the MapReduce job
+        logger.info("Running MapReduce job")
+
+        # Capture the output and errors of the MapReduce job
+        exec_result = container.exec_run(
+            "hadoop jar /tmp/map_reduce.jar org.apache.hadoop.examples.DecisionTreeMapReduce input output",
+            demux=True
+        )
+
+        # Check if the job started successfully
+        if exec_result.exit_code != 0:
+            stderr = exec_result[1] if exec_result[1] else 'No error output'  # No decoding needed here
+            logger.error(f"MapReduce job failed to start. Error: {stderr}")
+        else:
+            logger.info(f"MapReduce job started successfully. Logs: {exec_result[0]}")
+
+        # Step 6: Check if the MapReduce job is completed (check for output directory in HDFS)
+        logger.info("Waiting for MapReduce job to finish...")
+        job_complete = False
+        while not job_complete:
+            check_output = container.exec_run("hdfs dfs -test -e /user/root/output/part-r-00000")
+            if check_output.exit_code == 0:
+                job_complete = True
+                logger.info("MapReduce job completed successfully.")
+            else:
+                logger.info("MapReduce job not finished, waiting...")
+                time.sleep(30)  # Wait for 30 seconds before checking again
+
+        # Step 7: Get the output from HDFS (`part-r-00000`)
+        logger.info("Fetching output from HDFS")
+        fetch_command = "hdfs dfs -cat /user/root/output/part-r-00000"
+        result = container.exec_run(fetch_command)
+
+        if result.exit_code == 0:
+            # Step 8: Process the fetched data and insert into MongoDB
+            content = result.output.decode("utf-8").strip()
+            if content:
+                # Insert data into MongoDB with timestamp and hour
+                current_timestamp = int(time.time())
+                current_hour = datetime.now().strftime("%H")
+
+                document = {
+                    "content": content,
+                    "timestamp": current_timestamp,
+                    "hour": current_hour
+                }
+
+                trees_col.insert_one(document)
+                logger.info(f"Inserted content into MongoDB, hour: {current_hour}")
+            else:
+                logger.warning("No content found in the output file.")
+        else:
+            logger.error(f"Failed to fetch HDFS output: {result.stderr.decode('utf-8')}")
+
+        # Step 9: Wait before the next iteration
+        logger.info("Waiting 1 hour. Modify this cooldown in config.py")
         time.sleep(config.COOLDOWN)
