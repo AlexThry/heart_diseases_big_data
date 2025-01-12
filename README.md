@@ -8,10 +8,22 @@ docker-compose up
 ```
 Add the `-d` flag to run the containers in background.
 
+To start a clean project:
+```bash
+docker-compose down && docker volume rm $(docker volume ls -q) &&  docker-compose build && docker-compose up
+```
+
 To access the database from the terminal, run 
 ```bash
 docker exec -it mongo_container mongosh
 ``` 
+
+When everything is running, run the command
+```bash
+python ./hadoop/fetcher/fetch.py
+```
+
+
 
 ## Stop
 

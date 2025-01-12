@@ -18,7 +18,21 @@ services:
       - DB_NAME=heart_diseases
       - MODEL_PATH=/app/random_forest_model.pkl
       - DATASET_PATH=/app/data/heart_dataset.csv
-      - COOLDOWN=60
+      - COOLDOWN=10
+
+  fetcher:
+    build: ./hadoop/fetcher
+    container_name: fetcher
+    depends_on:
+      - mongo
+      - data_generator
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./output:/app/output
+    environment:
+      - MONGO_URL=mongodb://mongo:27017/
+      - DB_NAME=heart_diseases
+      - COOLDOWN=10
 
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
