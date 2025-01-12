@@ -7,6 +7,7 @@ import time
 import pandas as pd
 from pandas import DataFrame
 from sklearn.ensemble import RandomForestClassifier
+import logging
 
 
 def add_strokes(df: DataFrame, model: RandomForestClassifier) -> DataFrame:
@@ -108,12 +109,33 @@ def generate_data(path_to_dataset: string, model: RandomForestClassifier = None,
 
 
 if __name__ == "__main__":
+        
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger(__name__)
     
-    myclient = pymongo.MongoClient(config.MONGO_URL)
+    mongo_url = config.MONGO_URL
+    
+    logger.info(f"mongo url: {mongo_url}")
+    
+    myclient = None
+
+    myclient = pymongo.MongoClient(mongo_url)
+    logger.info(myclient)
     mydb = myclient[config.DB_NAME]
     model = joblib.load(config.MODEL_PATH)
-
     patient_col = mydb["patients"]
+    logger.info("Client created.")
+
+    # for _ in range(5):
+    #     try:
+    #         status = myclient.admin.command("replSetGetStatus")
+    #         if status["ok"] == 1:
+    #             logger.info("Replica set is ready.")
+    #             break
+    #     except pymongo.errors.OperationFailure as e:
+    #         logger.warning(f"Replica set not ready: {e}. Trying again.")
+    #     except pymongo.errors.ServerSelectionTimeoutError as e:
+    #         logger.warning(f"Server selection timeout: {e}. Trying again.")
 
     while True:
         nb_data = random.randint(5, 40)
@@ -126,9 +148,14 @@ if __name__ == "__main__":
         timestamp = int(time.time())  # Convertir en entier
         for record in rows_as_dicts:
             record['timestamp'] = timestamp
-            print(record)
-        print(rows_as_dicts)
-        patient_col.insert_many(rows_as_dicts)
+        for try_nb in range(2):
+            try:
+                patient_col.insert_many(rows_as_dicts)
+                logger.info("Data added to database")
+                break
+            except Exception as e:
+                logger.warning(f"Error while adding data: {e}. \nTrying again")
 
+                
         time.sleep(config.COOLDOWN)
 

@@ -7,6 +7,11 @@ services:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+      - ./mongo/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js
+    command: mongod --replSet rs0
+    networks:
+      - app-network
+
   
   data_generator:
     build: ./data_generation
@@ -19,6 +24,9 @@ services:
       - MODEL_PATH=/app/random_forest_model.pkl
       - DATASET_PATH=/app/data/heart_dataset.csv
       - COOLDOWN=60
+    networks:
+      - app-network
+
 
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
@@ -35,6 +43,7 @@ services:
     env_file:
       - ./hadoop/hadoop.env
 
+
   datanode:
     image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
     container_name: datanode
@@ -45,7 +54,8 @@ services:
       SERVICE_PRECONDITION: "namenode:9870"
     env_file:
       - ./hadoop/hadoop.env
-  
+
+
   resourcemanager:
     image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
     container_name: resourcemanager
@@ -55,6 +65,7 @@ services:
     env_file:
       - ./hadoop/hadoop.env
 
+
   nodemanager1:
     image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
     container_name: nodemanager
@@ -63,7 +74,8 @@ services:
       SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864 resourcemanager:8088"
     env_file:
       - ./hadoop/hadoop.env
-  
+
+
   historyserver:
     image: bde2020/hadoop-historyserver:2.0.0-hadoop3.2.1-java8
     container_name: historyserver
@@ -107,3 +119,7 @@ volumes:
   hadoop_namenode:
   hadoop_datanode:
   hadoop_historyserver:
+
+networks:
+  app-network:
+    driver: bridge

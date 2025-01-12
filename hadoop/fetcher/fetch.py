@@ -9,14 +9,14 @@ import logging
 
 
 if __name__ == "__main__":
-    while True:
-        logging.basicConfig(level=logging.INFO)
-        logger = logging.getLogger(__name__)
-        
-        myclient = pymongo.MongoClient(config.MONGO_URL)
-        mydb = myclient[config.DB_NAME]
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    
+    myclient = pymongo.MongoClient(config.MONGO_URL)
+    mydb = myclient[config.DB_NAME]
 
-        patient_col = mydb["patients"]
+    patient_col = mydb["patients"]
+    while True:
         
         one_hour_ago = int(time.time()) - 3600
         recent_patients = patient_col.find({"timestamp": {"$gte": one_hour_ago}})
