@@ -75,6 +75,33 @@ services:
     env_file:
       - ./hadoop/hadoop.env
 
+  spark-master:
+    image: bitnami/spark:2.4.5
+    container_name: spark_master
+    depends_on:
+      - mongo
+    environment:
+      - SPARK_MODE=master
+      - SPARK_MASTER_WEBUI_PORT=8080
+      - SPARK_MASTER_PORT=7077
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    volumes:
+      - ./spark/models:/opt/spark/models
+      - ./spark/scripts:/opt/spark/scripts
+
+  spark-worker:
+    image: bitnami/spark:2.4.5
+    container_name: spark_worker
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER=spark://spark-master:7077
+    links:
+      - spark-master
+
 volumes:
   mongo_data:
   hadoop_namenode:
