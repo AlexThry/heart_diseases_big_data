@@ -18,7 +18,7 @@ mongo_client = MongoClient('mongodb://localhost:27017/')  # Use the URL from con
 db = mongo_client["heart_diseases"]  # Use your database name from config
 collection = db['patients']  # Use your collection name
 
-output_dir = r'C:\Master\an_2_sem_1\Big_Data'
+output_dir = os.path.abspath(os.path.dirname(__file__))
 
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
@@ -29,7 +29,7 @@ sns.set(style="whitegrid")
 app = dash.Dash(__name__)
 
 # Create a new empty DataFrame
-new_data = pd.DataFrame(columns=['age', 'output', 'sex', 'cp'])
+new_data = pd.DataFrame(columns=['age', 'output', 'cp'])
 
 def fetch_real_time_data():
     global new_data
@@ -40,10 +40,11 @@ def fetch_real_time_data():
         
         # Log the number of new entries fetched
         print(f"Fetched {len(new_entries)} new entries from the database.")
+        print(new_entries)
         
         # Clean the DataFrame (remove unwanted columns)
         if not new_entries.empty:
-            new_entries = new_entries[['age', 'output', 'sex', 'cp']]  # Adjust based on your actual fields
+            new_entries = new_entries[['age', 'output', 'cp']]  # Adjust based on your actual fields
             new_data = pd.concat([new_data, new_entries], ignore_index=True)
         
         time.sleep(5)  # Wait for 5 seconds before fetching new data
@@ -64,9 +65,6 @@ app.layout = html.Div(style={'height': '100vh', 'display': 'flex', 'flexDirectio
             dcc.Graph(id='heart-disease-distribution-fig')
         ]),
         html.Div(style={'padding': '10px'}, children=[
-            dcc.Graph(id='sex-count-fig')
-        ]),
-        html.Div(style={'padding': '10px'}, children=[
             dcc.Graph(id='chest-pain-analysis-fig')
         ]),
     ]),
@@ -76,7 +74,6 @@ app.layout = html.Div(style={'height': '100vh', 'display': 'flex', 'flexDirectio
 @app.callback(
     Output('age-distribution-fig', 'figure'),
     Output('heart-disease-distribution-fig', 'figure'),
-    Output('sex-count-fig', 'figure'),
     Output('chest-pain-analysis-fig', 'figure'),
     Input('update-button', 'n_clicks')  # Trigger the callback when the button is clicked
 )
@@ -98,16 +95,6 @@ def update_figures(n_clicks):
     )
     heart_disease_distribution_fig.update_xaxes(tickvals=[0, 1], dtick=1)  # Set X-axis ticks to 0 and 1
 
-    sex_count_fig = px.histogram(
-        concatenated_data, 
-        x='sex', 
-        title='Sex Count', 
-        labels={'sex': 'Sex'}, 
-        color_discrete_sequence=['green'],
-        category_orders={'sex': [0, 1]}  # Set X-axis to show only 0 and 1
-    )
-    sex_count_fig.update_xaxes(tickvals=[0, 1], dtick=1)  # Set X-axis ticks to 0 and 1
-
     chest_pain_analysis_fig = px.histogram(
         concatenated_data, 
         x='cp', 
@@ -119,5 +106,7 @@ def update_figures(n_clicks):
     )
     chest_pain_analysis_fig.update_xaxes(tickvals=[0, 1, 2, 3], dtick=1)  # Set X-axis ticks to 0, 1, 2, and 3
 
-    return age_distribution_fig, heart_disease_distribution_fig, sex_count_fig, chest_pain_analysis_fig
+    return age_distribution_fig, heart_disease_distribution_fig, chest_pain_analysis_fig
 
+if __name__ == '__main__':
+    app.run_server(debug=True)

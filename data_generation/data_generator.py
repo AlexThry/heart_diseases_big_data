@@ -138,7 +138,7 @@ if __name__ == "__main__":
     #         logger.warning(f"Server selection timeout: {e}. Trying again.")
 
     while True:
-        nb_data = random.randint(5, 40)
+        nb_data = random.randint(1, 10)
         with_results = random.choice([True, False])
 
         generated_data = generate_data(config.DATASET_PATH, model, nb_data=nb_data, with_results=with_results)
