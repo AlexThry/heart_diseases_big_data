@@ -6,6 +6,8 @@ import plotly.express as px
 import numpy as np
 import threading
 import time
+import os
+from pathlib import Path
 
 # Create an empty DataFrame to store new data
 new_data = pd.DataFrame(columns=['age', 'output', 'sex', 'cp'])
@@ -30,8 +32,13 @@ def generate_random_data():
 data_thread = threading.Thread(target=generate_random_data, daemon=True)
 data_thread.start()
 
-# Read the CSV file
-df = pd.read_csv(r'C:\Master\an_2_sem_1\Big_Data\Project\heart_diseases_big_data-main\data\heart_dataset.csv')
+# Replace the absolute path with a relative path
+current_file_path = Path(__file__).resolve()
+project_root = current_file_path.parent.parent.parent  # Go up three levels to reach the project root
+dataset_path = os.path.join(project_root, 'data', 'heart_dataset.csv')
+
+# Read the CSV file using the relative path
+df = pd.read_csv(dataset_path)
 
 # Create a Dash application
 app = dash.Dash(__name__)
