@@ -7,6 +7,8 @@ import logging
 import docker
 import io
 import tarfile
+import time
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
@@ -26,7 +28,7 @@ if __name__ == "__main__":
         recent_patients_list = list(recent_patients)
 
         logger.info(f"Fetched {len(recent_patients_list)} patients from the database.")
-        logger.info("sexe")
+        logger.info("caca")
 
         # Step 2: Save data to file for HDFS
         output_dir = datetime.now().strftime("./output/")
@@ -87,23 +89,39 @@ if __name__ == "__main__":
         else:
             logger.info(f"Input file {os.path.basename(output_file)} is present in HDFS.")
 
-        # Step 4: Check if Hadoop is in safe mode and exit it if necessary
-        logger.info("Checking if Hadoop is in Safe Mode...")
-        
-        # Run the command to check if the NameNode is in safe mode
-        safemode_check = container.exec_run("hdfs dfsadmin -safemode get")
-        
-        if b"Safe mode is ON" in safemode_check.output:
-            logger.info("Hadoop is in Safe Mode. Attempting to force exit safe mode.")
-            container.exec_run("hdfs dfsadmin -safemode leave")
-            logger.info("Hadoop is no longer in Safe Mode.")
-        else:
-            logger.info("Hadoop is not in Safe Mode.")
 
-        # Step 5: Run the MapReduce job
+        # Step 4: Check if the output directory exists in HDFS and delete it if necessary
+        logger.info("Checking if output directory exists in HDFS...")
+
+        def remove_directory_with_retry(container, retries=3, delay=5):
+            for attempt in range(retries):
+                check_output_dir = container.exec_run("hdfs dfs -ls /user/root/output")
+                if check_output_dir.exit_code == 0:
+                    logger.info("Output directory exists. Removing it.")
+                    container.exec_run("hdfs dfs -rm -r /user/root/output")
+
+                    # Wait before checking the removal again
+                    time.sleep(delay)
+                    check_output_dir_after_removal = container.exec_run("hdfs dfs -ls /user/root/output")
+                    if check_output_dir_after_removal.exit_code != 0:
+                        logger.info("Output directory removed successfully.")
+                        return True  # Successfully removed
+                    else:
+                        logger.error(f"Attempt {attempt + 1} failed to remove output directory.")
+                else:
+                    logger.info("Output directory does not exist.")
+                    return True  # No need to remove if it doesn't exist
+                time.sleep(delay)
+            return False  # Failed to remove after retries
+
+        # Call the function to attempt removing the directory
+        if not remove_directory_with_retry(container):
+            logger.error("Failed to remove the output directory after multiple attempts.")
+            continue  # Skip this iteration or handle it accordingly
+
+        # Step 5: Run the MapReduce job if the directory was removed
         logger.info("Running MapReduce job")
 
-        # Capture the output and errors of the MapReduce job
         exec_result = container.exec_run(
             "hadoop jar /tmp/map_reduce.jar org.apache.hadoop.examples.DecisionTreeMapReduce input output",
             demux=True
@@ -115,6 +133,7 @@ if __name__ == "__main__":
             logger.error(f"MapReduce job failed to start. Error: {stderr}")
         else:
             logger.info(f"MapReduce job started successfully. Logs: {exec_result[0]}")
+
 
         # Step 6: Check if the MapReduce job is completed (check for output directory in HDFS)
         logger.info("Waiting for MapReduce job to finish...")
