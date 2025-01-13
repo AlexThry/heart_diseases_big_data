@@ -28,7 +28,6 @@ if __name__ == "__main__":
         recent_patients_list = list(recent_patients)
 
         logger.info(f"Fetched {len(recent_patients_list)} patients from the database.")
-        logger.info("caca")
 
         # Step 2: Save data to file for HDFS
         output_dir = datetime.now().strftime("./output/")
@@ -90,7 +89,24 @@ if __name__ == "__main__":
             logger.info(f"Input file {os.path.basename(output_file)} is present in HDFS.")
 
 
-        # Step 4: Check if the output directory exists in HDFS and delete it if necessary
+        # Step 4: Ensure Hadoop is not in safe mode
+        logger.info("Checking if Hadoop is in Safe Mode...")
+
+        # Run the command to check if the NameNode is in safe mode
+        safemode_check = container.exec_run("hdfs dfsadmin -safemode get")
+
+        if b"Safe mode is ON" in safemode_check.output:
+            logger.info("Hadoop is in Safe Mode. Attempting to force exit safe mode.")
+            safemode_leave = container.exec_run("hdfs dfsadmin -safemode leave")
+            if safemode_leave.exit_code == 0:
+                logger.info("Hadoop is no longer in Safe Mode.")
+            else:
+                logger.error("Failed to leave safe mode. Skipping this iteration.")
+                continue  # Skip this iteration if we cannot leave safe mode
+        else:
+            logger.info("Hadoop is not in Safe Mode.")
+
+        # Step 5: Check if the output directory exists in HDFS and delete it if necessary
         logger.info("Checking if output directory exists in HDFS...")
 
         def remove_directory_with_retry(container, retries=3, delay=5):
@@ -119,13 +135,20 @@ if __name__ == "__main__":
             logger.error("Failed to remove the output directory after multiple attempts.")
             continue  # Skip this iteration or handle it accordingly
 
-        # Step 5: Run the MapReduce job if the directory was removed
+        # Step 6: Run the MapReduce job
         logger.info("Running MapReduce job")
 
         exec_result = container.exec_run(
             "hadoop jar /tmp/map_reduce.jar org.apache.hadoop.examples.DecisionTreeMapReduce input output",
             demux=True
         )
+
+        # Check if the job started successfully
+        if exec_result.exit_code != 0:
+            stderr = exec_result[1] if exec_result[1] else 'No error output'  # No decoding needed here
+            logger.error(f"MapReduce job failed to start. Error: {stderr}")
+        else:
+            logger.info(f"MapReduce job started successfully. Logs: {exec_result[0]}")
 
         # Check if the job started successfully
         if exec_result.exit_code != 0:
