@@ -14,7 +14,7 @@ import time
 from pymongo import MongoClient  # Import MongoClient to connect to MongoDB
 
 # MongoDB connection setup
-mongo_client = MongoClient('mongodb://localhost:27017/')  # Use the URL from config
+mongo_client = MongoClient(os.getenv('MONGO_URL', 'mongodb://localhost:27017/'))  # Use the URL from environment variable or default to localhost
 db = mongo_client["heart_diseases"]  # Use your database name from config
 collection = db['patients']  # Use your collection name
 
@@ -54,8 +54,14 @@ threading.Thread(target=fetch_real_time_data, daemon=True).start()
 
 # Define the layout of the dashboard
 app.layout = html.Div(style={'height': '100vh', 'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center'}, children=[
-    html.Div(style={'padding': '10px', 'textAlign': 'center'}, children=[
-        html.Button('Update Charts', id='update-button', n_clicks=0)  # Button to update charts
+    dcc.Interval(
+        id='interval-component',
+        interval=10*1000,  # in milliseconds (10 seconds)
+        n_intervals=0
+    ),
+    html.Div(id='update-indicator', style={'padding': '10px', 'textAlign': 'center'}, children=[
+        html.Span('Last updated: ', style={'fontWeight': 'bold'}),
+        html.Span(id='last-update-time')
     ]),
     html.Div(style={'display': 'grid', 'gridTemplateColumns': 'repeat(2, 1fr)', 'flexGrow': 1}, children=[
         html.Div(style={'padding': '10px'}, children=[
@@ -70,14 +76,15 @@ app.layout = html.Div(style={'height': '100vh', 'display': 'flex', 'flexDirectio
     ]),
 ])
 
-# Callback to update the figures
+# Callback to update the figures and the update indicator
 @app.callback(
     Output('age-distribution-fig', 'figure'),
     Output('heart-disease-distribution-fig', 'figure'),
     Output('chest-pain-analysis-fig', 'figure'),
-    Input('update-button', 'n_clicks')  # Trigger the callback when the button is clicked
+    Output('last-update-time', 'children'),
+    Input('interval-component', 'n_intervals')  # Trigger the callback every 10 seconds
 )
-def update_figures(n_clicks):
+def update_figures(n_intervals):
     # Use only new_data for the visualizations
     concatenated_data = new_data  # Use only the new data from the database
 
@@ -106,7 +113,10 @@ def update_figures(n_clicks):
     )
     chest_pain_analysis_fig.update_xaxes(tickvals=[0, 1, 2, 3], dtick=1)  # Set X-axis ticks to 0, 1, 2, and 3
 
-    return age_distribution_fig, heart_disease_distribution_fig, chest_pain_analysis_fig
+    # Update the last update time
+    last_update_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+
+    return age_distribution_fig, heart_disease_distribution_fig, chest_pain_analysis_fig, last_update_time
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=True, host='0.0.0.0')

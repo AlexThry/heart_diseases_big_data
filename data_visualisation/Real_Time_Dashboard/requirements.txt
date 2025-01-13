@@ -1,0 +1,6 @@
+dash
+pandas
+matplotlib
+seaborn
+plotly
+pymongo
